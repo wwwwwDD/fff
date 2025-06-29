@@ -125,7 +125,7 @@ slider.MouseButton1Down:Connect(function()
 end)
 
 UserInputService.InputEnded:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+    if input.UserInputType == Enum.UserInputType.MouseButton1 and input.UserInputType == Enum.UserInputType.Touch then
         isDraggingSlider = false
     end
 end)
@@ -148,7 +148,7 @@ local function parseMobs()
     local mobFolder = game:GetService("Workspace"):FindFirstChild("Mobs")
     if mobFolder then
         for _, mob in pairs(mobFolder:GetDescendants()) do
-            if mob:IsA("Model") then -- Убрана проверка Humanoid для тестирования
+            if mob:IsA("Model") and mob ~= mobFolder then -- Исключаем саму папку Mobs
                 print("Found mob:", mob.Name, "Path:", mob:GetFullName())
                 mobs[mob.Name] = mob
             end
@@ -185,7 +185,7 @@ end
 local function updateMobList()
     selectedMobs = {}
     for _, child in pairs(scrollFrame:GetChildren()) do
-        if child:IsA("TextButton") then
+        if child:IsA("TextButton") or child:IsA("TextLabel") then
             child:Destroy()
         end
     end
