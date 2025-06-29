@@ -14,8 +14,6 @@ frame.Size = UDim2.new(0, 300, 0, 450)
 frame.Position = UDim2.new(0.5, -150, 0.5, -225)
 frame.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
 frame.Parent = gui
-frame.Active = true -- Для перетаскивания
-frame.Draggable = true -- Включаем перетаскивание
 
 -- Заголовок
 local title = Instance.new("TextLabel")
@@ -90,25 +88,55 @@ local selectedMobs = {}
 local isAutoAttacking = false
 local attackInterval = 1
 
--- Логика ползунка
-local isDragging = false
-slider.MouseButton1Down:Connect(function()
-    isDragging = true
-end)
+-- Логика перетаскивания окна
+local isDraggingFrame = false
+local dragStartPos, frameStartPos
 
-UserInputService.InputEnded:Connect(function(input)
+title.InputBegan:Connect(function(input)
     if input.UserInputType == Enum.UserInputType.MouseButton1 then
-        isDragging = false
+        isDraggingFrame = true
+        dragStartPos = input.Position
+        frameStartPos = frame.Position
     end
 end)
 
 UserInputService.InputChanged:Connect(function(input)
-    if isDragging and input.UserInputType == Enum.UserInputType.MouseMovement then
+    if isDraggingFrame and input.UserInputType == Enum.UserInputType.MouseMovement then
+        local delta = input.Position - dragStartPos
+        frame.Position = UDim2.new(
+            frameStartPos.X.Scale,
+            frameStartPos.X.Offset + delta.X,
+            frameStartPos.Y.Scale,
+            frameStartPos.Y.Offset + delta.Y
+        )
+    end
+end)
+
+UserInputService.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        isDraggingFrame = false
+    end
+end)
+
+-- Логика ползунка
+local isDraggingSlider = false
+slider.MouseButton1Down:Connect(function()
+    isDraggingSlider = true
+end)
+
+UserInputService.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        isDraggingSlider = false
+    end
+end)
+
+UserInputService.InputChanged:Connect(function(input)
+    if isDraggingSlider and input.UserInputType == Enum.UserInputType.MouseMovement then
         local mouseX = input.Position.X
         local sliderX = slider.AbsolutePosition.X
         local sliderWidth = slider.AbsoluteSize.X
         local relativeX = math.clamp((mouseX - sliderX) / sliderWidth, 0, 1)
-        attackInterval = relativeX * 30 -- От 0 до 30 секунд
+        attackInterval = relativeX * 30
         sliderKnob.Position = UDim2.new(relativeX, -5, 0, 0)
         sliderLabel.Text = string.format("Attack Interval: %.1fs", attackInterval)
     end
@@ -119,11 +147,13 @@ local function parseMobs()
     local mobs = {}
     local mobFolder = game:GetService("Workspace"):FindFirstChild("Mobs")
     if mobFolder then
-        for _, mob in pairs(mobFolder:GetChildren()) do
-            if mob:IsA("Model") and mob:FindFirstChild("Humanoid") then
+        for _, mob in pairs(mobFolder:GetDescendants()) do
+            if mob:IsA("Model") then -- Убрана проверка Humanoid для тестирования
+                print("Found mob:", mob.Name, "Path:", mob:GetFullName())
                 mobs[mob.Name] = mob
             end
         end
+        print("Total mobs found:", table.getn(mobs))
     else
         warn("Mobs folder not found in Workspace!")
     end
@@ -160,8 +190,18 @@ local function updateMobList()
         end
     end
     local mobs = parseMobs()
-    for mobName, mob in pairs(mobs) do
-        createMobButton(mobName, mob)
+    if table.getn(mobs) == 0 then
+        local noMobsLabel = Instance.new("TextLabel")
+        noMobsLabel.Size = UDim2.new(1, -10, 0, 30)
+        noMobsLabel.Text = "No mobs found"
+        noMobsLabel.TextColor3 = Color3.fromRGB(255, 100, 100)
+        noMobsLabel.BackgroundTransparency = 1
+        noMobsLabel.TextScaled = true
+        noMobsLabel.Parent = scrollFrame
+    else
+        for mobName, mob in pairs(mobs) do
+            createMobButton(mobName, mob)
+        end
     end
     scrollFrame.CanvasSize = UDim2.new(0, 0, 0, uiListLayout.AbsoluteContentSize.Y)
 end
@@ -209,5 +249,5 @@ UserInputService.InputBegan:Connect(function(input)
 end)
 
 -- Обновление списка мобов при изменении содержимого Workspace.Mobs
-workspace.Mobs.ChildAdded:Connect(updateMobList) -- Строка ~110
+workspace.Mobs.ChildAdded:Connect(updateMobList)
 workspace.Mobs.ChildRemoved:Connect(updateMobList)
