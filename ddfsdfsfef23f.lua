@@ -6,6 +6,7 @@ local PlayerGui = Player:WaitForChild("PlayerGui")
 
 -- Создаем ScreenGui
 local gui = Instance.new("ScreenGui")
+gui.Name = "MobAttackGUI"
 gui.Parent = PlayerGui
 
 -- Создаем основное окно
@@ -120,18 +121,23 @@ end)
 
 -- Логика ползунка
 local isDraggingSlider = false
+
 slider.MouseButton1Down:Connect(function()
     isDraggingSlider = true
 end)
 
 UserInputService.InputEnded:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 and input.UserInputType == Enum.UserInputType.Touch then
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
         isDraggingSlider = false
     end
 end)
 
 UserInputService.InputChanged:Connect(function(input)
     if isDraggingSlider and input.UserInputType == Enum.UserInputType.MouseMovement then
+        local mousePos = input.Position
+        local sliderAbsPos = slider.AbsolutePosition
+        local sliderAbsSize = slider.AbsoluteSize
+        
         local mouseX = input.Position.X
         local sliderX = slider.AbsolutePosition.X
         local sliderWidth = slider.AbsoluteSize.X
@@ -145,37 +151,43 @@ end)
 -- Функция для парсинга мобов из Workspace.Mobs
 local function parseMobs()
     local mobs = {}
-    local mobFolder = game:GetService("Workspace"):FindFirstChild("Mobs")
+    local mobFolder = workspace:FindFirstChild("Mobs")
+    
     if mobFolder then
-        for _, mob in pairs(mobFolder:GetDescendants()) do
-            if mob:IsA("Model") and mob ~= mobFolder then -- Исключаем саму папку Mobs
-                print("Found mob:", mob.Name, "Path:", mob:GetFullName())
-                mobs[mob.Name] = mob
+        for _, mob in pairs(mobFolder:GetChildren()) do
+            if mob:IsA("Model") then
+                -- Проверяем, что это действительно моб (например, имеет PrimaryPart)
+                if mob.PrimaryPart then
+                    table.insert(mobs, {
+                        Name = mob.Name,
+                        Model = mob
+                    })
+                end
             end
         end
-        print("Total mobs found:", table.getn(mobs))
     else
         warn("Mobs folder not found in Workspace!")
     end
+    
     return mobs
 end
 
 -- Функция создания кнопки для моба
-local function createMobButton(mobName, mob)
+local function createMobButton(mobData)
     local button = Instance.new("TextButton")
     button.Size = UDim2.new(1, -10, 0, 30)
-    button.Text = mobName
+    button.Text = mobData.Name
     button.BackgroundColor3 = Color3.fromRGB(70, 70, 70)
     button.TextColor3 = Color3.fromRGB(255, 255, 255)
     button.TextScaled = true
     button.Parent = scrollFrame
 
     button.MouseButton1Click:Connect(function()
-        if selectedMobs[mobName] then
-            selectedMobs[mobName] = nil
+        if selectedMobs[mobData.Name] then
+            selectedMobs[mobData.Name] = nil
             button.BackgroundColor3 = Color3.fromRGB(70, 70, 70)
         else
-            selectedMobs[mobName] = mob
+            selectedMobs[mobData.Name] = mobData.Model
             button.BackgroundColor3 = Color3.fromRGB(0, 100, 200)
         end
     end)
@@ -183,14 +195,16 @@ end
 
 -- Обновление списка мобов
 local function updateMobList()
-    selectedMobs = {}
+    -- Очищаем текущий список
     for _, child in pairs(scrollFrame:GetChildren()) do
         if child:IsA("TextButton") or child:IsA("TextLabel") then
             child:Destroy()
         end
     end
+    
     local mobs = parseMobs()
-    if table.getn(mobs) == 0 then
+    
+    if #mobs == 0 then
         local noMobsLabel = Instance.new("TextLabel")
         noMobsLabel.Size = UDim2.new(1, -10, 0, 30)
         noMobsLabel.Text = "No mobs found"
@@ -199,20 +213,27 @@ local function updateMobList()
         noMobsLabel.TextScaled = true
         noMobsLabel.Parent = scrollFrame
     else
-        for mobName, mob in pairs(mobs) do
-            createMobButton(mobName, mob)
+        for _, mobData in pairs(mobs) do
+            createMobButton(mobData)
         end
     end
+    
     scrollFrame.CanvasSize = UDim2.new(0, 0, 0, uiListLayout.AbsoluteContentSize.Y)
 end
-updateMobList()
 
 -- Функция атаки
 local function attackMobs()
     local attackTable = {}
-    for _, mob in pairs(selectedMobs) do
-        table.insert(attackTable, mob)
+    for mobName, mob in pairs(selectedMobs) do
+        -- Проверяем, что моб еще существует
+        if mob and mob.Parent then
+            table.insert(attackTable, mob)
+        else
+            -- Удаляем несуществующего моба из выбранных
+            selectedMobs[mobName] = nil
+        end
     end
+    
     if #attackTable > 0 then
         ReplicatedStorage.Systems.Combat.PlayerAttack:FireServer(attackTable)
     end
@@ -249,5 +270,10 @@ UserInputService.InputBegan:Connect(function(input)
 end)
 
 -- Обновление списка мобов при изменении содержимого Workspace.Mobs
-workspace.Mobs.ChildAdded:Connect(updateMobList)
-workspace.Mobs.ChildRemoved:Connect(updateMobList)
+if workspace:FindFirstChild("Mobs") then
+    workspace.Mobs.ChildAdded:Connect(updateMobList)
+    workspace.Mobs.ChildRemoved:Connect(updateMobList)
+end
+
+-- Первоначальное обновление списка
+updateMobList()
