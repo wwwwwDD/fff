@@ -191,14 +191,11 @@ local function parseMobs()
     
     if mobFolder then
         for _, mob in pairs(mobFolder:GetChildren()) do
-            if mob:IsA("Model") then
-                -- Проверяем, что это действительно моб (например, имеет PrimaryPart)
-                if mob.PrimaryPart then
-                    table.insert(mobs, {
-                        Name = mob.Name,
-                        Model = mob
-                    })
-                end
+            if mob:IsA("Model") and mob:FindFirstChild("HumanoidRootPart") then
+                table.insert(mobs, {
+                    Name = mob.Name,
+                    Model = mob
+                })
             end
         end
     else
@@ -263,29 +260,6 @@ local function updateMobList()
     scrollFrame.CanvasSize = UDim2.new(0, 0, 0, uiListLayout.AbsoluteContentSize.Y)
 end
 
--- Функция атаки
-local function attackMobs()
-    local attackTable = {}
-    for mobName, mob in pairs(selectedMobs) do
-        -- Проверяем, что моб еще существует
-        if mob and mob.Parent then
-            table.insert(attackTable, mob)
-        else
-            -- Удаляем несуществующего моба из выбранных
-            selectedMobs[mobName] = nil
-            if mobButtons[mobName] then
-                mobButtons[mobName].BackgroundColor3 = Color3.fromRGB(70, 70, 70)
-            end
-        end
-    end
-    
-    if #attackTable > 0 then
-        ReplicatedStorage.Systems.Combat.PlayerAttack:FireServer(attackTable)
-        return true
-    end
-    return false
-end
-
 -- Выбрать всех мобов
 selectAllButton.MouseButton1Click:Connect(function()
     local mobs = parseMobs()
@@ -293,15 +267,22 @@ selectAllButton.MouseButton1Click:Connect(function()
         selectedMobs[mobData.Name] = mobData.Model
         if mobButtons[mobData.Name] then
             mobButtons[mobData.Name].BackgroundColor3 = Color3.fromRGB(0, 100, 200)
+        else
+            -- Если кнопки нет, создаем ее
+            createMobButton(mobData)
+            selectedMobs[mobData.Name] = mobData.Model
+            mobButtons[mobData.Name].BackgroundColor3 = Color3.fromRGB(0, 100, 200)
         end
     end
 end)
 
 -- Снять выбор со всех мобов
 deselectAllButton.MouseButton1Click:Connect(function()
-    for mobName, button in pairs(mobButtons) do
+    for mobName, _ in pairs(selectedMobs) do
         selectedMobs[mobName] = nil
-        button.BackgroundColor3 = Color3.fromRGB(70, 70, 70)
+        if mobButtons[mobName] then
+            mobButtons[mobName].BackgroundColor3 = Color3.fromRGB(70, 70, 70)
+        end
     end
 end)
 
