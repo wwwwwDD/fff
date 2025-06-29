@@ -11,8 +11,8 @@ gui.Parent = PlayerGui
 
 -- Создаем основное окно
 local frame = Instance.new("Frame")
-frame.Size = UDim2.new(0, 300, 0, 450)
-frame.Position = UDim2.new(0.5, -150, 0.5, -225)
+frame.Size = UDim2.new(0, 350, 0, 500)  -- Увеличили размер окна
+frame.Position = UDim2.new(0.5, -175, 0.5, -250)
 frame.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
 frame.Parent = gui
 
@@ -37,7 +37,7 @@ closeButton.Parent = frame
 
 -- Прокручиваемый фрейм для списка мобов
 local scrollFrame = Instance.new("ScrollingFrame")
-scrollFrame.Size = UDim2.new(1, -10, 1, -170)
+scrollFrame.Size = UDim2.new(1, -10, 1, -220)  -- Увеличили высоту
 scrollFrame.Position = UDim2.new(0, 5, 0, 60)
 scrollFrame.BackgroundTransparency = 1
 scrollFrame.ScrollBarThickness = 5
@@ -47,10 +47,35 @@ local uiListLayout = Instance.new("UIListLayout")
 uiListLayout.Padding = UDim.new(0, 5)
 uiListLayout.Parent = scrollFrame
 
+-- Кнопки для массового выбора
+local selectButtonsFrame = Instance.new("Frame")
+selectButtonsFrame.Size = UDim2.new(1, -10, 0, 40)
+selectButtonsFrame.Position = UDim2.new(0, 5, 0, 55)
+selectButtonsFrame.BackgroundTransparency = 1
+selectButtonsFrame.Parent = frame
+
+local selectAllButton = Instance.new("TextButton")
+selectAllButton.Size = UDim2.new(0.5, -5, 1, 0)
+selectAllButton.Position = UDim2.new(0, 0, 0, 0)
+selectAllButton.Text = "Select All"
+selectAllButton.BackgroundColor3 = Color3.fromRGB(0, 100, 200)
+selectAllButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+selectAllButton.TextScaled = true
+selectAllButton.Parent = selectButtonsFrame
+
+local deselectAllButton = Instance.new("TextButton")
+deselectAllButton.Size = UDim2.new(0.5, -5, 1, 0)
+deselectAllButton.Position = UDim2.new(0.5, 5, 0, 0)
+deselectAllButton.Text = "Deselect All"
+deselectAllButton.BackgroundColor3 = Color3.fromRGB(200, 0, 0)
+deselectAllButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+deselectAllButton.TextScaled = true
+deselectAllButton.Parent = selectButtonsFrame
+
 -- Ползунок для интервала атаки
 local sliderFrame = Instance.new("Frame")
 sliderFrame.Size = UDim2.new(1, -10, 0, 50)
-sliderFrame.Position = UDim2.new(0, 5, 1, -110)
+sliderFrame.Position = UDim2.new(0, 5, 1, -160)
 sliderFrame.BackgroundColor3 = Color3.fromRGB(70, 70, 70)
 sliderFrame.Parent = frame
 
@@ -77,15 +102,26 @@ sliderKnob.Parent = slider
 -- Кнопка для непрерывной атаки
 local autoAttackButton = Instance.new("TextButton")
 autoAttackButton.Size = UDim2.new(1, -10, 0, 50)
-autoAttackButton.Position = UDim2.new(0, 5, 1, -60)
+autoAttackButton.Position = UDim2.new(0, 5, 1, -110)
 autoAttackButton.Text = "Start Auto Attack"
 autoAttackButton.BackgroundColor3 = Color3.fromRGB(0, 120, 0)
 autoAttackButton.TextColor3 = Color3.fromRGB(255, 255, 255)
 autoAttackButton.TextScaled = true
 autoAttackButton.Parent = frame
 
+-- Кнопка для единоразовой атаки
+local singleAttackButton = Instance.new("TextButton")
+singleAttackButton.Size = UDim2.new(1, -10, 0, 50)
+singleAttackButton.Position = UDim2.new(0, 5, 1, -60)
+singleAttackButton.Text = "Single Attack"
+singleAttackButton.BackgroundColor3 = Color3.fromRGB(120, 0, 120)
+singleAttackButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+singleAttackButton.TextScaled = true
+singleAttackButton.Parent = frame
+
 -- Таблица для хранения выбранных мобов и интервал атаки
 local selectedMobs = {}
+local mobButtons = {} -- Таблица для хранения ссылок на кнопки мобов
 local isAutoAttacking = false
 local attackInterval = 1
 
@@ -182,6 +218,9 @@ local function createMobButton(mobData)
     button.TextScaled = true
     button.Parent = scrollFrame
 
+    -- Сохраняем ссылку на кнопку
+    mobButtons[mobData.Name] = button
+
     button.MouseButton1Click:Connect(function()
         if selectedMobs[mobData.Name] then
             selectedMobs[mobData.Name] = nil
@@ -201,6 +240,9 @@ local function updateMobList()
             child:Destroy()
         end
     end
+    
+    mobButtons = {} -- Очищаем таблицу кнопок
+    selectedMobs = {} -- Очищаем выбранных мобов
     
     local mobs = parseMobs()
     
@@ -231,13 +273,37 @@ local function attackMobs()
         else
             -- Удаляем несуществующего моба из выбранных
             selectedMobs[mobName] = nil
+            if mobButtons[mobName] then
+                mobButtons[mobName].BackgroundColor3 = Color3.fromRGB(70, 70, 70)
+            end
         end
     end
     
     if #attackTable > 0 then
         ReplicatedStorage.Systems.Combat.PlayerAttack:FireServer(attackTable)
+        return true
     end
+    return false
 end
+
+-- Выбрать всех мобов
+selectAllButton.MouseButton1Click:Connect(function()
+    local mobs = parseMobs()
+    for _, mobData in pairs(mobs) do
+        selectedMobs[mobData.Name] = mobData.Model
+        if mobButtons[mobData.Name] then
+            mobButtons[mobData.Name].BackgroundColor3 = Color3.fromRGB(0, 100, 200)
+        end
+    end
+end)
+
+-- Снять выбор со всех мобов
+deselectAllButton.MouseButton1Click:Connect(function()
+    for mobName, button in pairs(mobButtons) do
+        selectedMobs[mobName] = nil
+        button.BackgroundColor3 = Color3.fromRGB(70, 70, 70)
+    end
+end)
 
 -- Логика непрерывной атаки
 autoAttackButton.MouseButton1Click:Connect(function()
@@ -248,11 +314,22 @@ autoAttackButton.MouseButton1Click:Connect(function()
     if isAutoAttacking then
         spawn(function()
             while isAutoAttacking do
-                attackMobs()
+                if not attackMobs() then
+                    -- Если нет мобов для атаки, останавливаем автоатаку
+                    isAutoAttacking = false
+                    autoAttackButton.Text = "Start Auto Attack"
+                    autoAttackButton.BackgroundColor3 = Color3.fromRGB(0, 120, 0)
+                    break
+                end
                 wait(math.max(0.1, attackInterval))
             end
         end)
     end
+end)
+
+-- Логика единоразовой атаки
+singleAttackButton.MouseButton1Click:Connect(function()
+    attackMobs()
 end)
 
 -- Закрытие меню и выгрузка скрипта
